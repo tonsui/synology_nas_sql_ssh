@@ -1,0 +1,58 @@
+nas-sql setup:
+
+1. install dsm
+
+2. force https web connect.
+
+3. enable firewall.
+
+4. enable ssh.
+
+5. install mariadb10 packages.
+	open -> enable TCP/IP connection.
+
+6. login ssh, switch to super user, disable password policy,
+	vi /volume1/@appstore/MariaDB10/usr/local/mariadb10/etc/mysql/my.cnf
+		add # to this two lines:
+			synology_password_check = FORCE_PLUS_PERMANENT
+			plugin_load_add = synology_password_check
+	/usr/syno/bin/synopkg restart MariaDB10
+
+7. mysql -u root -p
+CREATE USER 'admin'@'%' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+ALTER USER 'admin'@'%' REQUIRE SSL;
+FLUSH PRIVILEGES;
+
+8. mkdir /etc/mariadb/
+	openssl genrsa 2048 > ca-key.pem
+	openssl req -new -x509 -nodes -days 365000 -key ca-key.pem -out ca-cert.pem
+		hit [Enter] seven times.
+	openssl req -newkey rsa:2048 -days 365000 -nodes -keyout server-key.pem -out server-req.pem
+		answer [Enter], [Enter], [dot], [dot], [Enter], [Enter], [dot], 1234, [Enter]
+	openssl rsa -in server-key.pem -out server-key.pe
+	openssl x509 -req -in server-req.pem -days 365000 -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 -out server-cert.pem
+		output: "Signature ok".
+	openssl verify -CAfile ca-cert.pem server-cert.pem
+		output: "server-cert.pem: OK".
+	cd /var/packages/MariaDB10/etc
+	touch my.cnf
+	vi my.cnf
+[mysqld]
+ssl-ca=/etc/mariadb/ca-cert.pem
+ssl-cert=/etc/mariadb/server-cert.pem
+ssl-key=/etc/mariadb/server-key.pem
+	chmod 644 my.cnf
+	chmod 777 -R /etc/mariadb/
+	/usr/syno/bin/synopkg restart MariaDB10
+
+9. mysql -u root -p
+	SHOW VARIABLES LIKE 'have_ssl';
+		output: "YES".
+
+10. HeidiSQL SSL login, admin/your_password
+
+11. disable nas ssh.
+
+end.
